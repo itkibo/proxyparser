@@ -5,30 +5,38 @@
     https://github.com/itkibo/proxyparser
 
 .DESCRIPTION
-    This script extracts data from source log file and save result as csv file.
+    Script extracts data from source usrlog files and saves parsed result as csv file.
     By default, it processes all files by mask from script running folder.
-    One source file = one result file.
+    It creates one result file for each passed addr parameter.
 #>
 
 [CmdletBinding()]
 param(
     [string]$folder = ".\",         # default source files folder
+    [string]$dest,                  # destination folder
     [string]$filter = "*.usrlog",   # default source files extension 
     [string]$addr = 0               # default param number to extract 
 )
 
 
-function Extract_data([string]$file_path, [int]$addr) {
+function Extract_data($file, [int]$addr, $dest) {
 
-    $csv_path = $file_path + "___$([string]$addr)__.csv"
-    $k_order = @('row', 'time', 'msec', 'ip', 'addr', 'value')
-    $csv_row = $($k_order -join ';')
+    if ($dest) {
+        New-Item -Path "$($file.DirectoryName)\$dest" -ItemType Directory -Force | Out-Null
+        $csv_path = "$($file.DirectoryName)\$dest\$($file.Name)___$([string]$addr)__.csv"
+    } else {
+        $csv_path = $($file.FullName) + "___$([string]$addr)__.csv"
+    }    
     
-    'sep=;' >> $csv_path
+    $sep = ';'
+    $k_order = @('row', 'time', 'msec', 'ip', 'addr', 'value')
+    $csv_row = $($k_order -join $sep)
+    
+    "sep=$sep" >> $csv_path
     $csv_row >> $csv_path
 
     $row_num = 0
-    $reader = new-object System.IO.StreamReader($file_path)
+    $reader = new-object System.IO.StreamReader($file.FullName)
 
     while($null -ne ($line = $reader.ReadLine())) {
 
@@ -39,7 +47,6 @@ function Extract_data([string]$file_path, [int]$addr) {
         if ($matched_row.success -eq $true) {
 
             # it is header
-            
             $row_data = @{
                 'row' = $row_num
                 'time' = $matched_row.groups[1].value
@@ -88,6 +95,6 @@ if (Test-Path -Path $folder -PathType Container) {
 }
 
 foreach ($file in Get-Item -Path "$folder\$filter") {
-    Extract_data -file_path $file.FullName -addr $addr
-    Write-host "$($file.Name) done."
+    Extract_data -file $file -addr $addr -dest $dest
+    Write-host "addr=$addr`t$($file.Name) done."
 }
